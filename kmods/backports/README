@@ -1,0 +1,16 @@
+Back-ported BSP Drivers
+=======================
+
+We need to backport upstreamed drivers to the BSP package when:
+  - the drivers are not included in the FBOSS kernel but available in
+    newer kernel releases.
+  - the drivers are included in the FBOSS kernel but the kconfig option
+    is not enabled.
+
+All the drivers (and "pmbus.h") are backported from fbkernel 6.11.1-fbk3,
+except "lm25066.c" which is backported from fbkernel 6.4.3-fbk16, because
+lm25066.c from Linux 6.11 cannot be compiled in Linux 6.4.
+
+All the backported drivers (except ledtrig-timer.c) are prefixed with
+"bp4f_" (stands for Backporting for FBOSS) to avoid conflicts with the
+upstreamed version of drivers.
