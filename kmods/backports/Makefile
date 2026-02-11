@@ -9,6 +9,7 @@ obj-m += bp4f_ina238.o
 obj-m += bp4f_lm25066.o
 obj-m += bp4f_ltc4286.o
 obj-m += bp4f_max31790.o
+obj-m += bp4f_mp2869.o
 obj-m += bp4f_mp2891.o
 obj-m += bp4f_mp2993.o
 obj-m += bp4f_mp9941.o
