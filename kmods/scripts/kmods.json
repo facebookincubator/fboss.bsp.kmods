@@ -18,6 +18,7 @@
         "bp4f_tps25990",
         "bp4f_xdpe12284",
         "bp4f_xdpe152c4",
+        "fbcpld_generic",
         "fboss_iob_gpio",
         "fboss_iob_i2c",
         "fboss_iob_info",
