@@ -28,6 +28,7 @@
 #define FBMCB_MINOR_VER 0x02
 #define FBMCB_SUB_VER 0x03
 #define FBMCB_MAIN_PWR_STA 0x11
+#define FBMCB_PWRBRK_HS_FAULT_INTR_STA 0x6C
 #define FBMCB_SYS_SUB_DESIGN_STA 0xB5
 
 static const struct regbit_sysfs_config sysfs_files[] = {
@@ -118,6 +119,42 @@ static const struct regbit_sysfs_config sysfs_files[] = {
 		.name = "come_pwrok",
 		.mode = REGBIT_FMODE_RO,
 		.reg_addr = FBMCB_SYS_SUB_DESIGN_STA,
+		.bit_offset = 0,
+		.num_bits = 1,
+	},
+
+	/*
+	 * Register 0x6C: Power Brick and Hotswap Fault Status Register
+	 * [Logic: 1 = Normal, 0 = Fault/Alert]
+	 *
+	 * - hotswap_cpld_fault:
+	 * Hotswap fault (Overcurrent or FET_BAD).
+	 *
+	 * - pwr_brick_cpld_alert:
+	 * Power Brick alert (OV, OC, UV, OT, or FET_BAD).
+	 * (OV: Over-Voltage, OC: Over-Current, UV: Under-Voltage, OT: Over-Temperature)
+	 *
+	 * - hotswap_cpld_iout_oc_status:
+	 * Hotswap Output Over-Current (OC) condition.
+	 */
+	{
+		.name = "hotswap_cpld_fault",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBMCB_PWRBRK_HS_FAULT_INTR_STA,
+		.bit_offset = 2,
+		.num_bits = 1,
+	},
+	{
+		.name = "pwr_brick_cpld_alert",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBMCB_PWRBRK_HS_FAULT_INTR_STA,
+		.bit_offset = 1,
+		.num_bits = 1,
+	},
+	{
+		.name = "hotswap_cpld_iout_oc_status",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBMCB_PWRBRK_HS_FAULT_INTR_STA,
 		.bit_offset = 0,
 		.num_bits = 1,
 	},

@@ -28,6 +28,7 @@
 #define FBMCB_MINOR_VER 0x02
 #define FBMCB_SUB_VER 0x03
 #define FBMCB_PSU_PWR_MAIN_ENABLE 0x10
+#define FBMCB_PSU_PWR_STATUS 0x11
 #define FBMCB_SYS_SUB_DESIGN_STA 0xB5
 
 #define FBMCB_CPLD_SCRATCH 0x04
@@ -125,6 +126,26 @@ static const struct regbit_sysfs_config sysfs_files[] = {
 		.name = "come_pwrok",
 		.mode = REGBIT_FMODE_RO,
 		.reg_addr = FBMCB_SYS_SUB_DESIGN_STA,
+		.bit_offset = 0,
+		.num_bits = 1,
+	},
+
+	/*
+	 * Register 0x11: MCB SYSTEM MISC-2 Control : PSU PWR Status
+	 * 1: PSU Normal
+	 * 0: PSU (high temperature) Alert
+	 */
+	{
+		.name = "pdb_psu_r_alert",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBMCB_PSU_PWR_STATUS,
+		.bit_offset = 1,
+		.num_bits = 1,
+	},
+	{
+		.name = "pdb_psu_l_alert",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBMCB_PSU_PWR_STATUS,
 		.bit_offset = 0,
 		.num_bits = 1,
 	},
