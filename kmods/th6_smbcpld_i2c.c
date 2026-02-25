@@ -19,6 +19,7 @@
  */
 #define SMB_REG_MAX_TEMP_CLK_H_BYTE	0xb8
 #define SMB_REG_MAX_TEMP_CLK_L_BYTE	0xb9
+#define SMB_REG_ASIC_OVER_TEMP_CTRL	0xbc
 
 struct smb_hwmon_data {
 	struct device *hwmon_dev;
@@ -71,6 +72,28 @@ static const struct regbit_sysfs_config sysfs_files[] = {
 		.mode = REGBIT_FMODE_RW,
 		.reg_addr = 8,
 		.bit_offset = 0,
+		.num_bits = 1,
+	},
+	/* asic_ot_status_changed: record ASIC over-temperature status changed flag.
+	 * 1: ASIC over-temperature status changed.
+	 * 0: ASIC over-temperature status not changed.
+	 */
+	{
+		.name = "asic_ot_status_changed",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = SMB_REG_ASIC_OVER_TEMP_CTRL,
+		.bit_offset = 2,
+		.num_bits = 1,
+	},
+	/* asic_ot_status: ASIC real-time over-temperature status.
+	 * 1: The real-time ASIC temperature is normal.
+	 * 0: The real-time ASIC is in an over-temperature state.
+	 */
+	{
+		.name = "asic_ot_status",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = SMB_REG_ASIC_OVER_TEMP_CTRL,
+		.bit_offset = 1,
 		.num_bits = 1,
 	}
 };
