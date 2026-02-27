@@ -1,0 +1,35 @@
+name: Build kernel modules
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        kernel:
+          - "6.4.3"
+          - "6.11.1"
+          - "6.16"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kernel headers
+        run: |
+          BASE_URL="https://kernel.ubuntu.com/mainline/v${{ matrix.kernel }}"
+          for deb in $(wget -q -O- "${BASE_URL}/" \
+            | grep -oP 'href="\Klinux-headers-[^"]+_(all|amd64)\.deb' \
+            | sort -u); do
+            wget -q "${BASE_URL}/${deb}"
+          done
+          sudo dpkg -i linux-headers-*.deb
+          KVER=$(ls linux-headers-*-generic_*_amd64.deb \
+            | head -1 | grep -oP 'linux-headers-\K[^_]+')
+          echo "KVER=${KVER}" >> "$GITHUB_ENV"
+
+      - name: Build modules
+        run: make -C kmods BUILD_KERNEL="${KVER}" kmods
