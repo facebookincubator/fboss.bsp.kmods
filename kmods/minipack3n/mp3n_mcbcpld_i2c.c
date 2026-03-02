@@ -157,7 +157,7 @@ static const struct i2c_device_id mp3n_mcbcpld_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, mp3n_mcbcpld_id);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
 static int mcbcpld_probe(struct i2c_client *client,
 						 const struct i2c_device_id *id)
 #else

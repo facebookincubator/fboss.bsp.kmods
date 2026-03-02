@@ -26,11 +26,11 @@ jobs:
 
     - name: Run checkpatch.pl on all files in a directory
       run: |
-        find kmods -type f \( -name '*.c' -or -name '*.h' \) -print0 | xargs -0 -I {} sh -c "perl linux/scripts/checkpatch.pl --no-tree --ignore COMPLEX_MACRO,MULTISTATEMENT_MACRO_USE_DO_WHILE,LINUX_VERSION_CODE --terse --file {} | tee -a /tmp/checkpatch-output.txt"
-        if grep -qE 'ERROR:' /tmp/checkpatch-output.txt; then
-          echo "Errors found by checkpatch.pl"
+        find kmods -type f \( -name '*.c' -or -name '*.h' \) -not -path 'kmods/backports/*' -print0 | xargs -0 -I {} sh -c "perl linux/scripts/checkpatch.pl --no-tree --ignore COMPLEX_MACRO,MULTISTATEMENT_MACRO_USE_DO_WHILE,LINUX_VERSION_CODE,ALLOC_WITH_SIZEOF,SYMBOLIC_PERMS --terse --show-types --file {} | tee -a /tmp/checkpatch-output.txt"
+        if grep -qE 'WARNING:|ERROR:' /tmp/checkpatch-output.txt; then
+          echo "Warnings or errors found by checkpatch.pl"
           exit 1
         else
-          echo "No errors found by checkpatch.pl, only warnings or nothing."
+          echo "No warnings or errors found by checkpatch.pl."
           exit 0
         fi

@@ -693,7 +693,7 @@ static const struct i2c_device_id mp3n_fancpld_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, mp3n_fancpld_i2c_id);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
 static int fancpld_i2c_probe(struct i2c_client *client,
 			     const struct i2c_device_id *id)
 #else
@@ -736,7 +736,7 @@ exit_cleanup:
 	return err;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 static int fancpld_i2c_remove(struct i2c_client *client)
 #else
 static void fancpld_i2c_remove(struct i2c_client *client)
@@ -744,12 +744,11 @@ static void fancpld_i2c_remove(struct i2c_client *client)
 {
 	struct fbmcb_fan_data *fan_data = i2c_get_clientdata(client);
 
-	for (int i = 0; i < ARRAY_SIZE(fan_data->leds); i++) {
+	for (int i = 0; i < ARRAY_SIZE(fan_data->leds); i++)
 		led_trigger_deinit(fan_data->leds[i].cdev.dev);
-	}
 
 	mutex_destroy(&fan_data->idd_lock);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 	return 0;
 #endif
 }

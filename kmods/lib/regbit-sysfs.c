@@ -203,14 +203,10 @@ static int regbit_config_check(const struct regbit_sysfs_config *config,
 
 static void regbit_handle_free(struct regbit_sysfs_handle *handle)
 {
-	if (handle->entries) {
-		kfree(handle->entries);
-		handle->entries = NULL;
-	}
-	if (handle->attr_group.attrs) {
-		kfree(handle->attr_group.attrs);
-		handle->attr_group.attrs = NULL;
-	}
+	kfree(handle->entries);
+	handle->entries = NULL;
+	kfree(handle->attr_group.attrs);
+	handle->attr_group.attrs = NULL;
 	kfree(handle);
 }
 

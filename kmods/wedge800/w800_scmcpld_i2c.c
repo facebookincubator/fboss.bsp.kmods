@@ -536,20 +536,23 @@ static int scmcpld_probe(struct i2c_client *client)
 					ARRAY_SIZE(sysfs_files));
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 static int scmcpld_remove(struct i2c_client *client)
 #else
 static void scmcpld_remove(struct i2c_client *client)
 #endif
 {
 	struct fbscm_ctl_leds_data *data = i2c_get_clientdata(client);
-	for (int i = 0; i < SCM_CTL_LEDS_NUM * FBSCM_LED_COLOR_NUM; i++) {
+	int i;
+
+	for (i = 0; i < SCM_CTL_LEDS_NUM * FBSCM_LED_COLOR_NUM; i++) {
 		struct fbscm_leds_data *ldata = &data->leds[i];
+
 		led_trigger_deinit(ldata->cdev.dev);
 	}
 
 	mutex_destroy(&data->idd_lock);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 	return 0;
 #endif
 }
