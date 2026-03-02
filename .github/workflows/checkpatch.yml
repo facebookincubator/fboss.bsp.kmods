@@ -1,0 +1,36 @@
+name: Check Patch
+
+on: [push, pull_request]
+
+jobs:
+  checkpatch:
+    name: Run checkpatch.pl
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y perl libfile-slurp-perl
+
+    - name: Download checkpatch.pl
+      run: |
+        mkdir -p linux/scripts
+        curl -o linux/scripts/checkpatch.pl https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl
+        chmod +x linux/scripts/checkpatch.pl
+        curl -o linux/scripts/spelling.txt https://raw.githubusercontent.com/torvalds/linux/master/scripts/spelling.txt
+        curl -o linux/scripts/const_structs.checkpatch https://raw.githubusercontent.com/torvalds/linux/master/scripts/const_structs.checkpatch
+
+    - name: Run checkpatch.pl on all files in a directory
+      run: |
+        find kmods -type f \( -name '*.c' -or -name '*.h' \) -print0 | xargs -0 -I {} sh -c "perl linux/scripts/checkpatch.pl --no-tree --ignore COMPLEX_MACRO,MULTISTATEMENT_MACRO_USE_DO_WHILE,LINUX_VERSION_CODE --terse --file {} | tee -a /tmp/checkpatch-output.txt"
+        if grep -qE 'ERROR:' /tmp/checkpatch-output.txt; then
+          echo "Errors found by checkpatch.pl"
+          exit 1
+        else
+          echo "No errors found by checkpatch.pl, only warnings or nothing."
+          exit 0
+        fi
