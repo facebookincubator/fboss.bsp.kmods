@@ -22,14 +22,14 @@
 
 Name: fboss_bsp_kmods
 Summary: FBOSS BSP (Board Support Package) Kernel Modules
-Version: 2.4.0
+Version: 4.1.0
 Release: 1
 Vendor: Meta
 License: GPLv2
 Group: System Environment/Kernel
 Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-BuildRequires: %kernel_module_package_buildreqs rsync tar gcc make kernel-devel rpm-build
+BuildRequires: rsync tar gcc make kernel-devel rpm-build
 
 %description
 The BSP (Board Support Package) of FBOSS Switches manufactured by JDMs.
@@ -62,27 +62,27 @@ install -t %{buildroot}%{util_dir} kmods/scripts/kmods.json
 %clean
 rm -rf %{buildroot}
 
-%package -n %{name}-%{rpm_kernel_version}
+%package -n %{name}-%{rpm_kernel_version}-%{version}-1
 Summary: FBOSS BSP (Board Support Package) Kernel Modules
 Group: System Environment/Kernel
 Provides: %{name}
 
-%description -n %{name}-%{rpm_kernel_version}
+%description -n %{name}-%{rpm_kernel_version}-%{version}-1
 The BSP (Board Support Package) of FBOSS Switches manufactured by JDMs.
 
 The package contains the kernel drivers for the FBOSS IOB and DOM FPGAs
 (Multi-Function Devices), CPLDs and various leaf devices (such as hardware
 monitoring sensors, etc).
 
-%files -n %{name}-%{rpm_kernel_version}
+%files -n %{name}-%{rpm_kernel_version}-%{version}-1
 %defattr (-, root, root)
 %{kmod_dir}
 %{util_dir}
 
-%post -n %{name}-%{rpm_kernel_version}
+%post -n %{name}-%{rpm_kernel_version}-%{version}-1
 /sbin/depmod -a %{rpm_kernel_version}
 
-%postun -n %{name}-%{rpm_kernel_version}
+%postun -n %{name}-%{rpm_kernel_version}-%{version}-1
 /sbin/depmod -a %{rpm_kernel_version}
 
 %changelog
