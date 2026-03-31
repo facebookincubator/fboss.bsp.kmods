@@ -22,14 +22,14 @@
 
 Name: fboss_bsp_kmods
 Summary: FBOSS BSP (Board Support Package) Kernel Modules
-Version: 2.4.0
+Version: 4.2.0
 Release: 1
 Vendor: Meta
 License: GPLv2
 Group: System Environment/Kernel
 Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-BuildRequires: %kernel_module_package_buildreqs rsync tar gcc make kernel-devel rpm-build
+BuildRequires: rsync tar gcc make kernel-devel rpm-build
 
 %description
 The BSP (Board Support Package) of FBOSS Switches manufactured by JDMs.
