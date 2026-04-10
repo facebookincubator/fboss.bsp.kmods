@@ -4,9 +4,5 @@
 
 obj-m += mp3n_fancpld.o
 mp3n_fancpld-objs := minipack3n/mp3n_fancpld_i2c.o fboss_iob_led_trigger.o
-obj-m += mp3n_mcbcpld.o
-mp3n_mcbcpld-objs := minipack3n/mp3n_mcbcpld_i2c.o lib/regbit-sysfs.o
 obj-m += mp3n_scmcpld.o
 mp3n_scmcpld-objs := minipack3n/mp3n_scmcpld_i2c.o fboss_iob_led_trigger.o lib/regbit-sysfs.o
-obj-m += mp3n_smbcpld.o
-mp3n_smbcpld-objs := minipack3n/mp3n_smbcpld_i2c.o lib/regbit-sysfs.o
