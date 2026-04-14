@@ -41,6 +41,7 @@ JOBS ?= $(shell nproc)
 include $(M)/anacapa/Makefile
 include $(M)/icecube/Makefile
 include $(M)/icetea/Makefile
+include $(M)/leh800b/Makefile
 include $(M)/minipack3n/Makefile
 include $(M)/montblanc/Makefile
 include $(M)/mtia/Makefile
