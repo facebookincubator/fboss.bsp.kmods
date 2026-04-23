@@ -19,6 +19,8 @@ fboss_iob_pci-objs := fboss_iob_pci_main.o lib/fbiob-auxdev.o lib/fbiob-cdev.o
 obj-m += fboss_iob_spi.o
 obj-m += fboss_iob_xcvr.o
 fboss_iob_xcvr-objs := fboss_iob_xcvr_aux.o lib/regbit-sysfs.o
+obj-m += fboss_iob_rtm.o
+fboss_iob_rtm-objs := fboss_iob_rtm_aux.o lib/regbit-sysfs.o
 
 # Generic CPLD driver with runtime sysfs support
 obj-m += fbcpld_generic.o
