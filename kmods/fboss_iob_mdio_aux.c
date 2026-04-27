@@ -42,8 +42,6 @@
 #define FBIOB_MDIO_REG_SRC      0x18
 #define FBIOB_MDIO_REG_RST      0x1C
 
-#define FBIOB_MDIO_RTM_REG_RST  0x0
-
 enum fbiob_mdio_opcode {
 	BUS_WRITE,
 	BUS_READ
@@ -60,8 +58,6 @@ struct fbiob_mdio_bus {
 	struct fb_mdio_desc mdesc;
 	__u32 csr_bus_addr;
 	void __iomem *mmio_csr;
-	__u32 ext_csr_bus_addr;
-	void __iomem *mmio_ext_csr;
 	enum fbiob_mdio_state state;
 };
 
@@ -131,55 +127,6 @@ union fbiob_mdio_rst {
 	} s;
 };
 
-union fbiob_mdio_rtm_rst {
-	u32 u;
-	struct fbiob_mdio_rtm_rst_s {
-		u32 reset_0:1;
-		u32 refclk_1:1;
-		u32 reserved_2_4:3;
-		u32 intr_stat_5:1;
-		u32 reserved_6_8:3;
-		u32 intr_stat_change_9:1;
-		u32 reserved_10_31:22;
-	} s;
-};
-
-/*
- * Besides the main MDIO controller block region, there is an extended block
- * region which is used to control devices on buses by IOs. To get the IO block
- * address for devices under a specific MDIO controller/bus, firstly we calculate
- * the main block index by dividing the main block offset with its block size,
- * then using the same block index and ext-region base address, we can finally
- * get the corresponding block bus address.
- */
-static u32 get_ext_csr_bus_addr(struct device *dev, u32 csr_bus_addr)
-{
-	struct fbiob_priv *priv;
-	struct pci_dev *pdev;
-	u32 base_bus_addr;
-	int bus_off, dom_start_off, blk_dom_off;
-	int blk_idx;
-
-	pdev = to_pci_dev(dev);
-	priv = pci_get_drvdata(pdev);
-	base_bus_addr = priv->bar0_bus_addr;
-
-	bus_off = csr_bus_addr - base_bus_addr;
-
-	if (bus_off >= FBDOM2_GLOBAL_REG_START)
-		dom_start_off = FBDOM2_GLOBAL_REG_START;
-	else
-		dom_start_off = FBDOM1_GLOBAL_REG_START;
-
-	blk_dom_off = bus_off - dom_start_off -
-						FBIOB_MDIO_BLK_START_DOMOFF;
-	blk_idx =  blk_dom_off / FBIOB_MDIO_BLK_SIZE;
-
-	return base_bus_addr + dom_start_off +
-			FBIOB_MDIO_EXT_BLK_START_DOMOFF +
-			blk_idx * FBIOB_MDIO_EXT_BLK_SIZE;
-}
-
 static void fbiob_mdio_clean_status(struct fbiob_mdio_bus *bus)
 {
 	union fbiob_mdio_sts sts;
@@ -232,26 +179,6 @@ static int fbiob_mdio_reset(struct fbiob_mdio_bus *bus)
 	writel(msk.u, bus->mmio_csr + FBIOB_MDIO_REG_INTR_MSK);
 
 	bus->state = STATE_READY;
-	return 0;
-}
-
-static int fbiob_mdio_rtm_reset(struct fbiob_mdio_bus *bus, int rtm_addr)
-{
-	union fbiob_mdio_rtm_rst rst;
-
-	if (rtm_addr != 0)
-		return -EIO;
-
-	rst.u = readl(bus->mmio_ext_csr + FBIOB_MDIO_RTM_REG_RST);
-	rst.s.reset_0 = 0;
-	writel(rst.u, bus->mmio_ext_csr + FBIOB_MDIO_RTM_REG_RST);
-
-	fsleep(FBOSS_MDIO_RESET_TIME_MS * 1000);
-
-	rst.u = readl(bus->mmio_ext_csr + FBIOB_MDIO_RTM_REG_RST);
-	rst.s.reset_0 = 1;
-	writel(rst.u, bus->mmio_ext_csr + FBIOB_MDIO_RTM_REG_RST);
-
 	return 0;
 }
 
@@ -340,23 +267,6 @@ static ssize_t reset_bus_store(struct device *dev,
 
 static DEVICE_ATTR_WO(reset_bus);
 
-static ssize_t reset_rtm_0_store(struct device *dev,
-			       struct device_attribute *attr,
-			       const char *buf, size_t count)
-{
-	int ret;
-	struct mii_bus *mdio = dev_get_drvdata(dev->parent);
-	struct fbiob_mdio_bus *bus = mdio->priv;
-
-	ret = fbiob_mdio_rtm_reset(bus, 0);
-	if (ret)
-		return ret;
-
-	return count;
-}
-
-static DEVICE_ATTR_WO(reset_rtm_0);
-
 static void fbiob_mdio_remove(struct auxiliary_device *auxdev)
 {
 	struct mii_bus *mdio = dev_get_drvdata(&auxdev->dev);
@@ -397,26 +307,6 @@ static int fbiob_mdio_probe(struct auxiliary_device *auxdev,
 	if (unlikely(!bus->mmio_csr))
 		return -ENOMEM;
 
-	/* Request address space for the extended retimer control block */
-
-	if (aux_adap->data.iobuf_offset != FBIOB_INVALID_OFFSET)
-		/* "iobuf_offset" is pointed to the extended control block */
-		bus->ext_csr_bus_addr = aux_adap->data.iobuf_offset;
-	else
-		/* calculate the address to the extended control block */
-		bus->ext_csr_bus_addr = get_ext_csr_bus_addr(auxdev->dev.parent,
-								bus->csr_bus_addr);
-
-	res = devm_request_mem_region(&auxdev->dev, bus->ext_csr_bus_addr,
-				FBIOB_MDIO_EXT_BLK_SIZE, auxdev->name);
-	if (unlikely(!res))
-		return -EBUSY;
-
-	bus->mmio_ext_csr = devm_ioremap(&auxdev->dev, bus->ext_csr_bus_addr,
-						FBIOB_MDIO_EXT_BLK_SIZE);
-	if (unlikely(!bus->mmio_ext_csr))
-		return -ENOMEM;
-
 	bus->auxdev = auxdev;
 
 	ret = fbiob_mdio_reset(bus);
@@ -436,10 +326,6 @@ static int fbiob_mdio_probe(struct auxiliary_device *auxdev,
 		return ret;
 
 	ret = device_create_file(&mdio->dev, &dev_attr_reset_bus);
-	if (unlikely(ret))
-		return ret;
-
-	ret = device_create_file(&mdio->dev, &dev_attr_reset_rtm_0);
 	if (unlikely(ret))
 		return ret;
 
