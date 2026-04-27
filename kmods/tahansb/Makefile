@@ -4,8 +4,6 @@
 
 obj-m += tahansb_fancpld.o
 tahansb_fancpld-objs := tahansb/tahansb_fancpld_i2c.o
-obj-m += tahansb_mcbcpld.o
-tahansb_mcbcpld-objs := tahansb/tahansb_mcbcpld_i2c.o lib/regbit-sysfs.o
 obj-m += tahansb_scmcpld.o
 tahansb_scmcpld-objs := tahansb/tahansb_scmcpld_i2c.o fboss_iob_led_trigger.o lib/regbit-sysfs.o
 
