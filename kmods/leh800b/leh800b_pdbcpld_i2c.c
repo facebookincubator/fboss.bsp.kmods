@@ -37,7 +37,7 @@
 #define FBPDB_REG_FAN_LED_MASK                    0b00000011
 #define FBPDB_FAN_LED_HW_CTRL                     0x00
 #define FBPDB_FAN_LED_BLUE                        0x01
-#define FBPDB_FAN_LED_RED                         0x02
+#define FBPDB_FAN_LED_AMBER                       0x02
 #define FBPDB_FAN_LED_OFF                         0x03
 
 #define FBPDB_REG_FAN_PRESENT_MASK                0b00000001
@@ -87,8 +87,8 @@ static const struct {
 		.color = "blue",
 	},
 	{
-		.reg_val = FBPDB_FAN_LED_RED,
-		.color = "red",
+		.reg_val = FBPDB_FAN_LED_AMBER,
+		.color = "amber",
 	},
 };
 
