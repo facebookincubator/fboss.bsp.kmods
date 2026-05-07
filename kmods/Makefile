@@ -24,6 +24,10 @@ fboss_iob_xcvr-objs := fboss_iob_xcvr_aux.o lib/regbit-sysfs.o
 obj-m += fbcpld_generic.o
 fbcpld_generic-objs := fbcpld_generic_i2c.o lib/fbcpld-cdev.o
 
+# Generic fan CPLD driver with ioctl configuration
+obj-m += fbfancpld.o
+fbfancpld-objs := fbfancpld_i2c.o fboss_iob_led_trigger.o
+
 # Common TH6 SMB CPLD driver
 obj-m += th6_smbcpld.o
 th6_smbcpld-objs := th6_smbcpld_i2c.o lib/regbit-sysfs.o
