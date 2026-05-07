@@ -8,7 +8,6 @@
 #include <linux/i2c.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
-#include <linux/version.h>
 
 #include "regbit-sysfs.h"
 

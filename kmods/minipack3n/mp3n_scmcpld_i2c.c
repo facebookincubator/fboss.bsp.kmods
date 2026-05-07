@@ -7,7 +7,6 @@
 #include <linux/module.h>
 #include <linux/leds.h>
 #include <linux/i2c.h>
-#include <linux/version.h>
 
 #include "regbit-sysfs.h"
 #include "../fboss_iob_led_trigger.h"
@@ -526,12 +525,7 @@ static const struct i2c_device_id mp3n_scmcpld_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, mp3n_scmcpld_id);
 
-#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
-static int scmcpld_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
-#else
 static int scmcpld_probe(struct i2c_client *client)
-#endif
 {
 	int ret;
 	struct fbscm_ctl_leds_data *leddata;
@@ -557,11 +551,7 @@ static int scmcpld_probe(struct i2c_client *client)
 					ARRAY_SIZE(sysfs_files));
 }
 
-#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
-static int scmcpld_remove(struct i2c_client *client)
-#else
 static void scmcpld_remove(struct i2c_client *client)
-#endif
 {
 	struct fbscm_ctl_leds_data *data = i2c_get_clientdata(client);
 	int i;
@@ -573,9 +563,6 @@ static void scmcpld_remove(struct i2c_client *client)
 	}
 
 	mutex_destroy(&data->idd_lock);
-#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
-	return 0;
-#endif
 }
 
 static struct i2c_driver mp3n_scmcpld_driver = {
