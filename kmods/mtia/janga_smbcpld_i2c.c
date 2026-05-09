@@ -8,7 +8,6 @@
 #include <linux/i2c.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
-#include <linux/version.h>
 
 #include "regbit-sysfs.h"
 
@@ -326,11 +325,7 @@ static const struct i2c_device_id janga_smbcpld_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, janga_smbcpld_id);
 
-#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
-static int smbcpld_probe(struct i2c_client *client, const struct i2c_device_id *id)
-#else
 static int smbcpld_probe(struct i2c_client *client)
-#endif
 {
 	struct smb_hwmon_data *data;
 

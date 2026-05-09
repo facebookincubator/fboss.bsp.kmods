@@ -12,7 +12,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/i2c.h>
-#include <linux/version.h>
 #include <linux/errno.h>
 #include <linux/leds.h>
 
@@ -255,12 +254,7 @@ static const struct i2c_device_id mtia_smbcpld_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, mtia_smbcpld_id);
 
-#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
-static int mtia_smbcpld_probe(struct i2c_client *client,
-			      const struct i2c_device_id *id)
-#else
 static int mtia_smbcpld_probe(struct i2c_client *client)
-#endif
 {
 	int ret;
 	struct fbscm_ctl_leds_data *leddata;
@@ -286,11 +280,7 @@ static int mtia_smbcpld_probe(struct i2c_client *client)
 					ARRAY_SIZE(sysfs_files));
 }
 
-#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
-static int mtia_smbcpld_remove(struct i2c_client *client)
-#else
 static void mtia_smbcpld_remove(struct i2c_client *client)
-#endif
 {
 	struct fbscm_ctl_leds_data *data = i2c_get_clientdata(client);
 
@@ -301,9 +291,6 @@ static void mtia_smbcpld_remove(struct i2c_client *client)
 	}
 
 	mutex_destroy(&data->idd_lock);
-#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
-	return 0;
-#endif
 }
 
 static struct i2c_driver mtia_smbcpld_driver = {

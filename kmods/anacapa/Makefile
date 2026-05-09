@@ -8,5 +8,3 @@ obj-m += anacapa_mcbcpld.o
 anacapa_mcbcpld-objs := anacapa/anacapa_mcbcpld_i2c.o fboss_iob_led_trigger.o lib/regbit-sysfs.o
 obj-m += anacapa_scmcpld.o
 anacapa_scmcpld-objs := anacapa/anacapa_scmcpld_i2c.o fboss_iob_led_trigger.o lib/regbit-sysfs.o
-obj-m += anacapa_rtmcpld.o
-anacapa_rtmcpld-objs := anacapa/anacapa_rtmcpld_i2c.o lib/regbit-sysfs.o

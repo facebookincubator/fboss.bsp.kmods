@@ -19,7 +19,6 @@
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
 #include <linux/watchdog.h>
-#include <linux/version.h>
 
 #define DRIVER_NAME	"tahansb_fancpld"
 

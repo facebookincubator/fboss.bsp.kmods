@@ -12,7 +12,6 @@
 #include <linux/module.h>
 #include <linux/leds.h>
 #include <linux/i2c.h>
-#include <linux/version.h>
 
 #include "regbit-sysfs.h"
 #include "../fboss_iob_led_trigger.h"

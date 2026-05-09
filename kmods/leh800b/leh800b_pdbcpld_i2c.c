@@ -1,59 +1,48 @@
 // SPDX-License-Identifier: GPL-2.0+
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-/*
- * fancpld.c
- *
- * FANCPLD is a logical component (I2C Slave Module, address 0x33) of
- * Minipack3 MCBCPLD dedicated for fan control.
- *
- * FANCPLD doesn't have its own firmware revision because it's part of
- * MCB CPLD. MCB CPLD firmware revision is reported by mcbcpld.c.
- */
-
 #include <linux/errno.h>
 #include <linux/i2c.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
-#include <linux/leds.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
+#include <linux/leds.h>
 #include <linux/watchdog.h>
+#include <linux/version.h>
 
+#include "regbit-sysfs.h"
 #include "../fboss_iob_led_trigger.h"
 
-#define DRIVER_NAME	"w800_fancpld"
+#define DRIVER_NAME	"leh800b_pdbcpld"
 
-/*
- * Total 4 fan trays. Each fan LED supports 2 colors.
- */
-#define FAN_TRAY_NUM		4
-#define FAN_LED_COLOR_NUM	3
+#define FBPDB_BOARD_INFO 0x00
+#define FBPDB_MAJOR_VER 0x01
+#define FBPDB_MINOR_VER 0x02
+#define FBPDB_SUB_VER 0x03
 
-/* Fan PWN is defined as 0 to 40 mapped to 0 to 100%, multiplied by 2.5% */
-#define FAN_PWM_MAX		40
+/* Fan PWM is defined as 0 to 64 mapped to 0 to 100%, multiplied by 1.5625% */
+#define FAN_PWM_MAX		64
 
-/* Fan control related registers, fn = 1...4 */
-#define FBMCB_REG_FAN_TACH_F_N(fn)                (0x30 + (fn - 1) * 0x10)
-#define FBMCB_REG_FAN_TACH_B_N(fn)                (0x31 + (fn - 1) * 0x10)
-#define FBMCB_REG_FAN_PWM(fn)                     (0x32 + (fn - 1) * 0x10)
-#define FBMCB_REG_FAN_LED(fn)                     (0x34 + (fn - 1) * 0x10)
-#define FBMCB_REG_FAN_STATUS(fn)                  (0x38 + (fn - 1) * 0x10)
+/* Fan control related registers, fn = 1...8 */
+#define FBPDB_REG_FAN_TACH_F_N(fn)                (0x30 + (fn - 1) * 0x10)
+#define FBPDB_REG_FAN_PWM(fn)                     (0x32 + (fn - 1) * 0x10)
+#define FBPDB_REG_FAN_LED(fn)                     (0x34 + (fn - 1) * 0x10)
+#define FBPDB_REG_FAN_STATUS(fn)                  (0x38 + (fn - 1) * 0x10)
 
-#define FBMCB_REG_FAN_MODE_BIT_OFFSET             7
-#define FBMCB_REG_FAN_MODE_MASK                   BIT(7)
-#define FBMCB_REG_FAN_PWM_MASK                    0b01111111
-#define FBMCB_REG_FAN_LED_MASK                    0b00000011
-#define FBMCB_REG_FAN_PRESENT_MASK                0b00000001
+#define FBPDB_REG_FAN_MODE_BIT_OFFSET             7
+#define FBPDB_REG_FAN_MODE_MASK                   BIT(7)
+#define FBPDB_REG_FAN_PWM_MASK                    0b01111111
+#define FBPDB_REG_FAN_LED_MASK                    0b00000011
+#define FBPDB_FAN_LED_HW_CTRL                     0x00
+#define FBPDB_FAN_LED_BLUE                        0x01
+#define FBPDB_FAN_LED_AMBER                       0x02
+#define FBPDB_FAN_LED_OFF                         0x03
 
-#define FBMCB_FAN_SPEED_MULTIPLIER                150
+#define FBPDB_REG_FAN_PRESENT_MASK                0b00000001
 
-#define FBMCB_FAN_LED_HW_CTRL                     0x00
-#define FBMCB_FAN_LED_BLUE                        0x01
-#define FBMCB_FAN_LED_AMBER                         0x02
-#define FBMCB_FAN_LED_OFF                         0x03
-#define FBMCB_FAN_LED_MASK                        0b11
+#define FBPDB_FAN_SPEED_MULTIPLIER                300
 
 #define FAN_WDT_CTRL_0                            0x1F
 #define FAN_WDT_ENABLE_BIT                        BIT(4)
@@ -61,20 +50,23 @@
 #define FAN_WDT_TIMEOUT                           BIT(6)
 
 #define FAN_WDT_CTRL_1                            0x20
-#define FAN_WDT_TIMEOUT_MAX                       (0xFF * 5) // maximum reg val 0xff, increments of 5 sec
+/* maximum reg val 0xff, increments of 5 sec */
+#define FAN_WDT_TIMEOUT_MAX                       (0xFF * 5)
 
 #define FAN_WDT_STA_REG                           0x21
 #define FAN_WDT_PWM                               0x22
 
-/*
- * default timeout value, in seconds (increments of 5).
- */
+/* default timeout value, in seconds (increments of 5) */
 #define FAN_WDT_DFT_TIMEOUT	(0x3F * 5)
+
 static int wdt_timeout = FAN_WDT_DFT_TIMEOUT;
 module_param(wdt_timeout, int, 0);
 MODULE_PARM_DESC(wdt_timeout,
 	"Watchdog timeout in seconds. Default = "
 		__MODULE_STRING(FAN_WDT_DFT_TIMEOUT));
+
+#define FAN_TRAY_NUM 8
+#define FAN_LED_COLOR_NUM 2
 
 struct fan_led_data {
 	struct led_classdev cdev;
@@ -86,40 +78,30 @@ struct fan_led_data {
 	u8 reg_val;
 };
 
-struct fbmcb_fan_data {
-	struct device *hwmon_dev;
-	struct watchdog_device *wdd;
-	struct mutex idd_lock;
-	struct i2c_client *client;
-
-	struct fan_led_data leds[FAN_TRAY_NUM * FAN_LED_COLOR_NUM];
-};
-
-/*
- * FIXME: Red and amber point to same register since older productions have red
- * led and newer have amber. Remove red when a major version bump can be made.
- */
 static const struct {
 	u8 reg_val;
 	const char *color;
 } led_color_info[FAN_LED_COLOR_NUM] = {
 	{
-		.reg_val = FBMCB_FAN_LED_BLUE,
+		.reg_val = FBPDB_FAN_LED_BLUE,
 		.color = "blue",
 	},
 	{
-		.reg_val = FBMCB_FAN_LED_AMBER,
-		.color = "red",
-	},
-	{
-		.reg_val = FBMCB_FAN_LED_AMBER,
+		.reg_val = FBPDB_FAN_LED_AMBER,
 		.color = "amber",
 	},
+};
 
+struct fbpdb_fan_data {
+	struct device *hwmon_dev;
+	struct watchdog_device *wdd;
+	struct mutex idd_lock;
+	struct i2c_client *client;
+	struct fan_led_data leds[FAN_TRAY_NUM * FAN_LED_COLOR_NUM];
 };
 
 /*
- * MCB CPLD Fan WDT -- How does it work:
+ * PDB CPLD Fan WDT -- How does it work:
  *  - 0x1F - Control Reg 0, writing values to:
  *           Start: 0x10
  *             Pet: 0x30 (0x20 | 0x10)
@@ -128,7 +110,7 @@ static const struct {
  *  - 0x21 - Counter: * 5 sec;
  *                    Times out when reaches the value of 0x20;
  *                    Will be set to 0 after petting;
- *  - 0x22 - Boost PWM: from 0 to 40 (0x28);
+ *  - 0x22 - Boost PWM: from 0 to 64 (0x40);
  */
 
 static int fan_wdt_start(struct watchdog_device *wdd)
@@ -147,8 +129,10 @@ static int fan_wdt_stop(struct watchdog_device *wdd)
 
 static int fan_wdt_set_timeout(struct watchdog_device *wdd, unsigned int timeout)
 {
-	// Timeout length in seconds is 5 * register_value. Divide timeout by 5
-	// to determine value to set in register.
+	/*
+	 * Timeout length in seconds is 5 * register_value. Divide timeout by 5
+	 * to determine value to set in register.
+	 */
 	u8 reg;
 	struct i2c_client *client = to_i2c_client(wdd->parent);
 
@@ -195,10 +179,11 @@ static const struct watchdog_info fan_wdt_info = {
 	.identity = KBUILD_MODNAME,
 };
 
-static int fan_wdt_init(struct watchdog_device *wdd, struct i2c_client *client)
+static int fan_wdt_init(struct fbpdb_fan_data *fan_data, struct i2c_client *client)
 {
 	int err;
 	struct device *dev = &client->dev;
+	struct watchdog_device *wdd;
 
 	wdd = devm_kzalloc(dev, sizeof(*wdd), GFP_KERNEL);
 	if (!wdd)
@@ -218,10 +203,12 @@ static int fan_wdt_init(struct watchdog_device *wdd, struct i2c_client *client)
 		dev_err(dev, "watchdog_register_device failed, ret=%d\n", err);
 		return err;
 	}
+
+	fan_data->wdd = wdd;
 	return 0;
 }
 
-static umode_t mcbfan_is_visible(const void *_data,
+static umode_t pdbfan_is_visible(const void *_data,
 				 enum hwmon_sensor_types type,
 				 u32 attr, int channel)
 {
@@ -254,18 +241,14 @@ static umode_t mcbfan_is_visible(const void *_data,
 	return mode;
 }
 
-static int mcbfan_fan_input_read(struct device *dev, int channel, long *val)
+static int pdbfan_fan_input_read(struct device *dev, int channel, long *val)
 {
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
 	struct i2c_client *client = fan_data->client;
-
-	int fn; /* fan number */
 	int reg_addr;
 	int reg_data;
 
-	fn = channel / 2 + 1;
-	reg_addr = (channel % 2) ? FBMCB_REG_FAN_TACH_B_N(fn) :
-				   FBMCB_REG_FAN_TACH_F_N(fn);
+	reg_addr = FBPDB_REG_FAN_TACH_F_N(channel + 1);
 	mutex_lock(&fan_data->idd_lock);
 	reg_data = i2c_smbus_read_byte_data(client, reg_addr);
 	mutex_unlock(&fan_data->idd_lock);
@@ -273,35 +256,35 @@ static int mcbfan_fan_input_read(struct device *dev, int channel, long *val)
 	if (reg_data < 0)
 		return reg_data;
 
-	*val = reg_data * FBMCB_FAN_SPEED_MULTIPLIER;
+	*val = reg_data * FBPDB_FAN_SPEED_MULTIPLIER;
 	return 0;
 }
 
-static int mcbfan_fan_read(struct device *dev, u32 attr, int channel, long *val)
+static int pdbfan_fan_read(struct device *dev, u32 attr, int channel, long *val)
 {
 	switch (attr) {
 	case hwmon_fan_input:
-		return mcbfan_fan_input_read(dev, channel, val);
+		return pdbfan_fan_input_read(dev, channel, val);
 	default:
 		return -EOPNOTSUPP;
 	}
 }
 
-static int mcbfan_pwm_input_read(struct device *dev, int channel, long *val)
+static int pdbfan_pwm_input_read(struct device *dev, int channel, long *val)
 {
 	/*
-	 * PWM register value is from 0 to 40
-	 * actual PWM is calculated by multiplying 2.5%
-	 * If the register value is over 40 then PWM is set to 100%
+	 * PWM register value is from 0 to 64
+	 * actual PWM is calculated by multiplying 1.5625%
+	 * If the register value is over 64 then PWM is set to 100%
 	 */
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
 	struct i2c_client *client = fan_data->client;
 	int fn;
 	int reg_addr;
 	int reg_data;
 
 	fn = channel + 1;
-	reg_addr = FBMCB_REG_FAN_PWM(fn);
+	reg_addr = FBPDB_REG_FAN_PWM(fn);
 
 	mutex_lock(&fan_data->idd_lock);
 	reg_data = i2c_smbus_read_byte_data(client, reg_addr);
@@ -314,16 +297,16 @@ static int mcbfan_pwm_input_read(struct device *dev, int channel, long *val)
 	return 0;
 }
 
-static int mcbfan_pwm_enable_read(struct device *dev, int channel, long *val)
+static int pdbfan_pwm_enable_read(struct device *dev, int channel, long *val)
 {
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
 	struct i2c_client *client = fan_data->client;
 	int fn;
 	int reg_addr;
 	int reg_data;
 
 	fn = channel + 1;
-	reg_addr = FBMCB_REG_FAN_PWM(fn);
+	reg_addr = FBPDB_REG_FAN_PWM(fn);
 
 	mutex_lock(&fan_data->idd_lock);
 	reg_data = i2c_smbus_read_byte_data(client, reg_addr);
@@ -332,25 +315,25 @@ static int mcbfan_pwm_enable_read(struct device *dev, int channel, long *val)
 	if (reg_data < 0)
 		return reg_data;
 
-	*val = (reg_data & FBMCB_REG_FAN_MODE_MASK) ? 0 : 1;
+	*val = (reg_data & FBPDB_REG_FAN_MODE_MASK) ? 0 : 1;
 	return 0;
 }
 
-static int mcbfan_pwm_read(struct device *dev, u32 attr, int channel, long *val)
+static int pdbfan_pwm_read(struct device *dev, u32 attr, int channel, long *val)
 {
 	switch (attr) {
 	case hwmon_pwm_input:
-		return mcbfan_pwm_input_read(dev, channel, val);
+		return pdbfan_pwm_input_read(dev, channel, val);
 	case hwmon_pwm_enable:
-		return mcbfan_pwm_enable_read(dev, channel, val);
+		return pdbfan_pwm_enable_read(dev, channel, val);
 	default:
 		return -EOPNOTSUPP;
 	}
 }
 
-static int mcbfan_pwm_input_write(struct device *dev, int channel, long val)
+static int pdbfan_pwm_input_write(struct device *dev, int channel, long val)
 {
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
 	struct i2c_client *client = fan_data->client;
 	int byte_val;
 	int fn;
@@ -365,7 +348,7 @@ static int mcbfan_pwm_input_write(struct device *dev, int channel, long val)
 	target_pwm = (val > FAN_PWM_MAX) ? FAN_PWM_MAX : val;
 
 	fn = channel + 1;
-	reg_addr = FBMCB_REG_FAN_PWM(fn);
+	reg_addr = FBPDB_REG_FAN_PWM(fn);
 
 	mutex_lock(&fan_data->idd_lock);
 	reg_data = i2c_smbus_read_byte_data(client, reg_addr);
@@ -375,7 +358,7 @@ static int mcbfan_pwm_input_write(struct device *dev, int channel, long val)
 		goto unlock_out;
 	}
 
-	byte_val = (reg_data & FBMCB_REG_FAN_MODE_MASK) | target_pwm;
+	byte_val = (reg_data & FBPDB_REG_FAN_MODE_MASK) | target_pwm;
 
 	err = i2c_smbus_write_byte_data(client, reg_addr, byte_val);
 
@@ -385,9 +368,9 @@ unlock_out:
 	return err;
 }
 
-static int mcbfan_pwm_enable_write(struct device *dev, int channel, long val)
+static int pdbfan_pwm_enable_write(struct device *dev, int channel, long val)
 {
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
 	struct i2c_client *client = fan_data->client;
 	int byte_val;
 	int fn;
@@ -395,11 +378,11 @@ static int mcbfan_pwm_enable_write(struct device *dev, int channel, long val)
 	int reg_data;
 	int reg_addr;
 
-	if (val != 0 && val != 1)
+	if ((val != 0) && (val != 1))
 		return -EINVAL;
 
 	fn = channel + 1;
-	reg_addr = FBMCB_REG_FAN_PWM(fn);
+	reg_addr = FBPDB_REG_FAN_PWM(fn);
 
 	mutex_lock(&fan_data->idd_lock);
 
@@ -409,7 +392,7 @@ static int mcbfan_pwm_enable_write(struct device *dev, int channel, long val)
 		goto unlock_out;
 	}
 
-	byte_val = (val << FBMCB_REG_FAN_MODE_BIT_OFFSET) | reg_data;
+	byte_val = (val << FBPDB_REG_FAN_MODE_BIT_OFFSET) | reg_data;
 
 	err = i2c_smbus_write_byte_data(client, reg_addr, byte_val);
 
@@ -419,53 +402,54 @@ unlock_out:
 	return err;
 }
 
-static int mcbfan_pwm_write(struct device *dev, u32 attr, int channel, long val)
+static int pdbfan_pwm_write(struct device *dev, u32 attr, int channel, long val)
 {
 	switch (attr) {
 	case hwmon_pwm_input:
-		return mcbfan_pwm_input_write(dev, channel, val);
+		return pdbfan_pwm_input_write(dev, channel, val);
 	case hwmon_pwm_enable:
-		return mcbfan_pwm_enable_write(dev, channel, val);
+		return pdbfan_pwm_enable_write(dev, channel, val);
 	default:
 		return -EOPNOTSUPP;
 	}
 }
 
-static int mcbfan_read(struct device *dev,
+static int pdbfan_read(struct device *dev,
 		       enum hwmon_sensor_types type,
 		       u32 attr, int channel, long *val)
 {
 	switch (type) {
 	case hwmon_fan:
-		return mcbfan_fan_read(dev, attr, channel, val);
+		return pdbfan_fan_read(dev, attr, channel, val);
 	case hwmon_pwm:
-		return mcbfan_pwm_read(dev, attr, channel, val);
+		return pdbfan_pwm_read(dev, attr, channel, val);
 	default:
 		return -EOPNOTSUPP;
 	}
 }
 
-static int mcbfan_write(struct device *dev,
+static int pdbfan_write(struct device *dev,
 			enum hwmon_sensor_types type,
 			u32 attr, int channel, long val)
 {
 	switch (type) {
 	case hwmon_pwm:
-		return mcbfan_pwm_write(dev, attr, channel, val);
+		return pdbfan_pwm_write(dev, attr, channel, val);
 	case hwmon_fan:
 	default:
 		return -EOPNOTSUPP;
 	}
 }
 
-static const struct hwmon_ops mcbfan_hwmon_ops = {
-	.is_visible = mcbfan_is_visible,
-	.read = mcbfan_read,
-	.write = mcbfan_write,
+static const struct hwmon_ops pdbfan_hwmon_ops = {
+	.is_visible = pdbfan_is_visible,
+	.read = pdbfan_read,
+	.write = pdbfan_write,
 };
 
-static const struct hwmon_channel_info *mcbfan_info[] = {
-	HWMON_CHANNEL_INFO(fan,  // 8 fans x 2 tach (f&r)
+static const struct hwmon_channel_info *pdbfan_info[] = {
+	/* 8 fans x 1 tach */
+	HWMON_CHANNEL_INFO(fan,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
@@ -478,13 +462,60 @@ static const struct hwmon_channel_info *mcbfan_info[] = {
 			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
 			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
 			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
 			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE),
 	NULL
 };
 
-static struct hwmon_chip_info mcbfan_chip_info = {
-	.ops = &mcbfan_hwmon_ops,
-	.info = mcbfan_info,
+static const struct regbit_sysfs_config sysfs_files[] = {
+	{
+		.name = "version_id",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBPDB_BOARD_INFO,
+		.bit_offset = 4,
+		.num_bits = 4,
+	},
+	{
+		.name = "board_id",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBPDB_BOARD_INFO,
+		.bit_offset = 0,
+		.num_bits = 4,
+	},
+	{
+		.name = "fw_ver",
+		.mode = REGBIT_FMODE_RO,
+		.show_func = cpld_fw_ver_show,
+	},
+	{
+		.name = "cpld_ver",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBPDB_MAJOR_VER,
+		.bit_offset = 0,
+		.num_bits = 7,
+	},
+	{
+		.name = "cpld_minor_ver",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBPDB_MINOR_VER,
+		.bit_offset = 0,
+		.num_bits = 8,
+	},
+	{
+		.name = "cpld_sub_ver",
+		.mode = REGBIT_FMODE_RO,
+		.reg_addr = FBPDB_SUB_VER,
+		.bit_offset = 0,
+		.num_bits = 8,
+	},
+};
+
+static struct hwmon_chip_info pdbfan_chip_info = {
+	.ops = &pdbfan_hwmon_ops,
+	.info = pdbfan_info,
 };
 
 /* Non-standard hwmon sysfs: present and boost PWM */
@@ -492,17 +523,17 @@ static struct hwmon_chip_info mcbfan_chip_info = {
 static ssize_t fan_present_show(struct device *dev,
 				struct device_attribute *dev_attr, char *buf)
 {
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
 	struct i2c_client *client = fan_data->client;
 	int fn = to_sensor_dev_attr(dev_attr)->index;
-	int reg_addr = FBMCB_REG_FAN_STATUS(fn);
+	int reg_addr = FBPDB_REG_FAN_STATUS(fn);
 	int reg_data;
 
 	mutex_lock(&fan_data->idd_lock);
 	reg_data = i2c_smbus_read_byte_data(client, reg_addr);
 	mutex_unlock(&fan_data->idd_lock);
 
-	return sprintf(buf, "%d\n", reg_data & FBMCB_REG_FAN_PRESENT_MASK ?
+	return sprintf(buf, "%d\n", reg_data & FBPDB_REG_FAN_PRESENT_MASK ?
 			0 : 1);
 }
 
@@ -510,67 +541,21 @@ static SENSOR_DEVICE_ATTR_RO(fan1_present, fan_present, 1);
 static SENSOR_DEVICE_ATTR_RO(fan2_present, fan_present, 2);
 static SENSOR_DEVICE_ATTR_RO(fan3_present, fan_present, 3);
 static SENSOR_DEVICE_ATTR_RO(fan4_present, fan_present, 4);
+static SENSOR_DEVICE_ATTR_RO(fan5_present, fan_present, 5);
+static SENSOR_DEVICE_ATTR_RO(fan6_present, fan_present, 6);
+static SENSOR_DEVICE_ATTR_RO(fan7_present, fan_present, 7);
+static SENSOR_DEVICE_ATTR_RO(fan8_present, fan_present, 8);
 
-static struct attribute *mcbfan_present_attrs[] = {
+static struct attribute *pdbfan_present_attrs[] = {
 	&sensor_dev_attr_fan1_present.dev_attr.attr,
 	&sensor_dev_attr_fan2_present.dev_attr.attr,
 	&sensor_dev_attr_fan3_present.dev_attr.attr,
 	&sensor_dev_attr_fan4_present.dev_attr.attr,
+	&sensor_dev_attr_fan5_present.dev_attr.attr,
+	&sensor_dev_attr_fan6_present.dev_attr.attr,
+	&sensor_dev_attr_fan7_present.dev_attr.attr,
+	&sensor_dev_attr_fan8_present.dev_attr.attr,
 	NULL
-};
-
-static const struct attribute_group mcbfan_present_group = {
-	.attrs = mcbfan_present_attrs,
-};
-
-static ssize_t fan_boost_pwm_show(struct device *dev,
-				  struct device_attribute *dev_attr, char *buf)
-{
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
-	struct i2c_client *client = fan_data->client;
-	int ret;
-
-	mutex_lock(&fan_data->idd_lock);
-	ret = i2c_smbus_read_byte_data(client, FAN_WDT_PWM);
-	mutex_unlock(&fan_data->idd_lock);
-
-	return sprintf(buf, "%d\n", (ret > FAN_PWM_MAX) ?
-			FAN_PWM_MAX : ret);
-}
-
-static ssize_t fan_boost_pwm_store(struct device *dev,
-				   struct device_attribute *dev_attr,
-				   const char *buf, size_t count)
-{
-	struct fbmcb_fan_data *fan_data = dev_get_drvdata(dev);
-	struct i2c_client *client = fan_data->client;
-	int ret;
-	int val;
-
-	ret = kstrtoint(buf, 10, &val);
-	if (ret < 0)
-		return ret;
-
-	val = (val > FAN_PWM_MAX) ? FAN_PWM_MAX : val;
-	mutex_lock(&fan_data->idd_lock);
-	ret = i2c_smbus_write_byte_data(client, FAN_WDT_PWM, val);
-	mutex_unlock(&fan_data->idd_lock);
-
-	if (ret == 0)
-		ret = count;
-
-	return ret;
-}
-
-static SENSOR_DEVICE_ATTR_RW(pwm_boost, fan_boost_pwm, 0);
-
-static struct attribute *mcbfan_boost_pwm_attrs[] = {
-	&sensor_dev_attr_pwm_boost.dev_attr.attr,
-	NULL
-};
-
-static const struct attribute_group mcbfan_boost_pwm_group = {
-	.attrs = mcbfan_boost_pwm_attrs,
 };
 
 static enum led_brightness brightness_get(struct led_classdev *led_cdev)
@@ -584,7 +569,7 @@ static enum led_brightness brightness_get(struct led_classdev *led_cdev)
 	if (ret < 0)
 		return ret;
 
-	reg_val = (u8)(ret & FBMCB_FAN_LED_MASK);
+	reg_val = (u8)(ret & FBPDB_REG_FAN_LED_MASK);
 	if (reg_val == ldata->reg_val)
 		return LED_ON;
 
@@ -602,12 +587,12 @@ static int brightness_set(struct led_classdev *led_cdev,
 	struct fan_led_data *ldata = container_of(led_cdev,
 					struct fan_led_data, cdev);
 
-	reg_val = (value == LED_OFF) ? FBMCB_FAN_LED_OFF : ldata->reg_val;
+	reg_val = (value == LED_OFF) ? FBPDB_FAN_LED_OFF : ldata->reg_val;
 	return i2c_smbus_write_byte_data(ldata->client, ldata->reg_addr,
 					reg_val);
 }
 
-static int fan_leds_init(struct fbmcb_fan_data *fdata)
+static int fan_leds_init(struct fbpdb_fan_data *fdata)
 {
 	int i, fn, ret;
 	int led_slot = 0;
@@ -618,13 +603,13 @@ static int fan_leds_init(struct fbmcb_fan_data *fdata)
 	 * Note: "fn" (fan number) is 1-based integer.
 	 */
 	for (fn = 1; fn <= FAN_TRAY_NUM; fn++) {
-		u8 reg_addr = FBMCB_REG_FAN_LED(fn);
+		u8 reg_addr = FBPDB_REG_FAN_LED(fn);
 
 		/*
 		 * Let hardware control the FAN LEDs by default.
 		 */
 		ret = i2c_smbus_write_byte_data(client, reg_addr,
-						FBMCB_FAN_LED_HW_CTRL);
+						FBPDB_FAN_LED_HW_CTRL);
 		if (ret) {
 			dev_err(dev,
 				"fan%d_led: failed to set hw_ctrl, ret=%d",
@@ -658,24 +643,70 @@ static int fan_leds_init(struct fbmcb_fan_data *fdata)
 	return 0;
 }
 
-static const struct attribute_group *mcbfan_extra_groups[] = {
-	&mcbfan_present_group,
-	&mcbfan_boost_pwm_group,
+static const struct attribute_group pdbfan_present_group = {
+	.attrs = pdbfan_present_attrs,
+};
+
+static ssize_t fan_boost_pwm_show(struct device *dev,
+				  struct device_attribute *dev_attr, char *buf)
+{
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct i2c_client *client = fan_data->client;
+	int ret;
+
+	mutex_lock(&fan_data->idd_lock);
+	ret = i2c_smbus_read_byte_data(client, FAN_WDT_PWM);
+	mutex_unlock(&fan_data->idd_lock);
+
+	return sprintf(buf, "%d\n", (ret > FAN_PWM_MAX) ?
+			FAN_PWM_MAX : ret);
+}
+
+static ssize_t fan_boost_pwm_store(struct device *dev,
+				   struct device_attribute *dev_attr,
+				   const char *buf, size_t count)
+{
+	struct fbpdb_fan_data *fan_data = dev_get_drvdata(dev);
+	struct i2c_client *client = fan_data->client;
+	int ret;
+	int val;
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret < 0)
+		return ret;
+
+	val = (val > FAN_PWM_MAX) ? FAN_PWM_MAX : val;
+	mutex_lock(&fan_data->idd_lock);
+	ret = i2c_smbus_write_byte_data(client, FAN_WDT_PWM, val);
+	mutex_unlock(&fan_data->idd_lock);
+
+	if (ret == 0)
+		ret = count;
+
+	return ret;
+}
+
+static SENSOR_DEVICE_ATTR_RW(pwm_boost, fan_boost_pwm, 0);
+
+static struct attribute *pdbfan_boost_pwm_attrs[] = {
+	&sensor_dev_attr_pwm_boost.dev_attr.attr,
 	NULL
 };
 
-
-/* MCBCPLD_FAN id */
-static const struct i2c_device_id w800_fancpld_i2c_id[] = {
-	{ DRIVER_NAME, 0 },
-	{ },
+static const struct attribute_group pdbfan_boost_pwm_group = {
+	.attrs = pdbfan_boost_pwm_attrs,
 };
-MODULE_DEVICE_TABLE(i2c, w800_fancpld_i2c_id);
 
-static int fancpld_i2c_probe(struct i2c_client *client)
+static const struct attribute_group *pdbfan_extra_groups[] = {
+	&pdbfan_present_group,
+	&pdbfan_boost_pwm_group,
+	NULL
+};
+
+static int pdbcpld_i2c_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
-	struct fbmcb_fan_data *fan_data;
+	struct fbpdb_fan_data *fan_data;
 	int err;
 
 	fan_data = devm_kzalloc(dev, sizeof(*fan_data), GFP_KERNEL);
@@ -687,20 +718,37 @@ static int fancpld_i2c_probe(struct i2c_client *client)
 	mutex_init(&fan_data->idd_lock);
 
 	fan_data->hwmon_dev = devm_hwmon_device_register_with_info(dev,
-				client->name, fan_data, &mcbfan_chip_info,
-				mcbfan_extra_groups);
+				client->name, fan_data, &pdbfan_chip_info,
+				pdbfan_extra_groups);
 
 	err = PTR_ERR_OR_ZERO(fan_data->hwmon_dev);
-	if (err)
+	if (err) {
+		dev_err(&client->dev,
+			"failed to create fan hwmon device, ret=%d", err);
 		goto exit_cleanup;
+	}
 
-	err = fan_wdt_init(fan_data->wdd, client);
-	if (err)
+	err = fan_wdt_init(fan_data, client);
+	if (err) {
+		dev_err(&client->dev,
+			"failed to init fan wdt, ret=%d", err);
 		goto exit_cleanup;
+	}
+
+	err = regbit_sysfs_init_i2c(&client->dev, sysfs_files,
+					ARRAY_SIZE(sysfs_files));
+	if (err) {
+		dev_err(&client->dev,
+			"failed to init regbit sysfs, ret=%d", err);
+		goto exit_cleanup;
+	}
 
 	err = fan_leds_init(fan_data);
-	if (err)
+	if (err) {
+		dev_err(&client->dev,
+			"failed to init fan leds, ret=%d", err);
 		goto exit_cleanup;
+	}
 
 	return 0;
 
@@ -710,29 +758,33 @@ exit_cleanup:
 	return err;
 }
 
-static void fancpld_i2c_remove(struct i2c_client *client)
+static void pdbcpld_i2c_remove(struct i2c_client *client)
 {
-	struct fbmcb_fan_data *fan_data = i2c_get_clientdata(client);
-
-	for (int i = 0; i < ARRAY_SIZE(fan_data->leds); i++)
-		led_trigger_deinit(fan_data->leds[i].cdev.dev);
+	struct fbpdb_fan_data *fan_data = i2c_get_clientdata(client);
 
 	mutex_destroy(&fan_data->idd_lock);
 }
 
-static struct i2c_driver w800_fancpld_i2c_driver = {
+/* PDBCPLD_FAN id */
+static const struct i2c_device_id leh800b_pdbcpld_i2c_id[] = {
+	{DRIVER_NAME, 0},
+	{},
+};
+MODULE_DEVICE_TABLE(i2c, leh800b_pdbcpld_i2c_id);
+
+static struct i2c_driver leh800b_pdbcpld_i2c_driver = {
 	.class    = I2C_CLASS_HWMON,
 	.driver   = {
 		.name  = DRIVER_NAME,
 	},
-	.probe    = fancpld_i2c_probe,
-	.remove   = fancpld_i2c_remove,
-	.id_table = w800_fancpld_i2c_id,
+	.probe    = pdbcpld_i2c_probe,
+	.remove   = pdbcpld_i2c_remove,
+	.id_table = leh800b_pdbcpld_i2c_id,
 };
 
-module_i2c_driver(w800_fancpld_i2c_driver);
+module_i2c_driver(leh800b_pdbcpld_i2c_driver);
 
-MODULE_AUTHOR("Brandon Chuang <brandon_chuang@accton.com>");
-MODULE_DESCRIPTION("Meta FBOSS Wedge800 MCBCPLD (FAN) Driver");
+MODULE_AUTHOR("Evan Zong <ezong@celestica.com>");
+MODULE_DESCRIPTION("Meta FBOSS PDB CPLD (FAN) Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(BSP_VERSION);

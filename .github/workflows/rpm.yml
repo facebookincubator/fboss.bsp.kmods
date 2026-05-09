@@ -24,7 +24,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          dnf install -y rpm-build rsync tar gcc make git python3-pyyaml openssl-devel flex bison bc elfutils-libelf-devel kernel-abi-stablelists kernel-rpm-macros
+          dnf install -y rpm-build rsync tar gcc make git python3-pip python3-pyyaml openssl-devel flex bison bc elfutils-libelf-devel kernel-abi-stablelists kernel-rpm-macros
 
       - name: Clone fboss kernel build scripts
         run: |

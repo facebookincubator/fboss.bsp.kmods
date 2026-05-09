@@ -20,7 +20,6 @@
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
 #include <linux/watchdog.h>
-#include <linux/version.h>
 
 #include "../fboss_iob_led_trigger.h"
 
@@ -693,12 +692,7 @@ static const struct i2c_device_id mp3_fancpld_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, mp3_fancpld_i2c_id);
 
-#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
-static int fancpld_i2c_probe(struct i2c_client *client,
-			     const struct i2c_device_id *id)
-#else
 static int fancpld_i2c_probe(struct i2c_client *client)
-#endif
 {
 	struct device *dev = &client->dev;
 	struct fbmcb_fan_data *fan_data;
@@ -736,11 +730,7 @@ exit_cleanup:
 	return err;
 }
 
-#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
-static int fancpld_i2c_remove(struct i2c_client *client)
-#else
 static void fancpld_i2c_remove(struct i2c_client *client)
-#endif
 {
 	struct fbmcb_fan_data *fan_data = i2c_get_clientdata(client);
 
@@ -748,9 +738,6 @@ static void fancpld_i2c_remove(struct i2c_client *client)
 		led_trigger_deinit(fan_data->leds[i].cdev.dev);
 
 	mutex_destroy(&fan_data->idd_lock);
-#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
-	return 0;
-#endif
 }
 
 static struct i2c_driver mp3_fancpld_i2c_driver = {
