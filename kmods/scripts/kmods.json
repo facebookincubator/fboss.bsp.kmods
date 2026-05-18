@@ -37,6 +37,7 @@
         "janga_smbcpld",
         "ledtrig_timer",
         "leh800b_pdbcpld",
+        "leh800b_scmcpld",
         "mp3_fancpld",
         "mp3_scmcpld",
         "mp3_smbcpld",
