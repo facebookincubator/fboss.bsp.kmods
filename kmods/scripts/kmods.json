@@ -5,6 +5,7 @@
         "anacapa_scmcpld",
         "bp4f_adm1275",
         "bp4f_ina238",
+        "bp4f_isl68137",
         "bp4f_lm25066",
         "bp4f_ltc4286",
         "bp4f_max31790",
