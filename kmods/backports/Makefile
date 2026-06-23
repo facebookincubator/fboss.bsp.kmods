@@ -6,6 +6,7 @@ ifeq (,$(filter $(CONFIG_LEDS_TRIGGER_TIMER),y m))
 obj-m += ledtrig-timer.o
 endif
 obj-m += bp4f_ina238.o
+obj-m += bp4f_isl68137.o
 obj-m += bp4f_lm25066.o
 obj-m += bp4f_ltc4286.o
 obj-m += bp4f_max31790.o
