@@ -14,6 +14,7 @@ obj-m += bp4f_mp2869.o
 obj-m += bp4f_mp2891.o
 obj-m += bp4f_mp2993.o
 obj-m += bp4f_mp9941.o
+obj-m += bp4f_mpq8785.o
 obj-m += bp4f_tda38640.o
 obj-m += bp4f_xdpe12284.o
 obj-m += bp4f_xdpe152c4.o
