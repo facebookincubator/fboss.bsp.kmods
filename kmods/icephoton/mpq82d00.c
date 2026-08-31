@@ -99,11 +99,10 @@ static int mpq82d00_identify(struct i2c_client *client, struct pmbus_driver_info
 	if (ret < 0)
 		return ret;
 
-	if (FIELD_GET(GENMASK(5, 5), ret)) {
+	if (FIELD_GET(GENMASK(5, 5), ret))
 		data->vout_scale = 320;
-	} else {
+	else
 		data->vout_scale = 125;
-	}
 
 	return 0;
 }
