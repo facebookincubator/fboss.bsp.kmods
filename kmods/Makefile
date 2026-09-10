@@ -49,6 +49,7 @@ JOBS ?= $(shell nproc)
 # Please sort platforms in alphabetical order.
 include $(M)/anacapa/Makefile
 include $(M)/icecube/Makefile
+include $(M)/icephoton/Makefile
 include $(M)/icetea/Makefile
 include $(M)/leh800b/Makefile
 include $(M)/minipack3n/Makefile
