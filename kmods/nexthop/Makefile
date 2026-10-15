@@ -14,6 +14,7 @@ obj-m += nh_fpga_led.o
 obj-m += nh_fpga_port_led.o
 obj-m += nh_fpga_psu.o
 obj-m += nh_irq.o
+obj-m += nh_xiic.o
 
 # Shared platform objects linked into each module that uses per-platform data.
 nh_platform_objs := nexthop/platform/nh_platform.o \
@@ -43,3 +44,6 @@ nh_fpga_port_led-objs := nexthop/nh_fpga_port_led_main.o \
 nh_fpga_psu-objs := nexthop/nh_fpga_psu_main.o $(nh_platform_objs)
 
 nh_irq-objs := nexthop/nh_irq.o $(nh_platform_objs)
+
+# Polled copy of the kernel's i2c-xiic for FPGAs that cannot use I2C interrupts.
+nh_xiic-objs := nexthop/nh_xiic_main.o

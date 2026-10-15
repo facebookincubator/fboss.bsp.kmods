@@ -60,6 +60,7 @@
         "w800b_smbcpld",
         "w800c_smbcpld",
         "nh_fpga_psu",
+        "nh_xiic",
         "nh_fpga_mux",
         "nh_fpga_i2c",
         "nh_fpga_led",
