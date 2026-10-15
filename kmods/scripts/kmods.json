@@ -58,7 +58,18 @@
         "w800_fancpld",
         "w800_scmcpld",
         "w800b_smbcpld",
-        "w800c_smbcpld"
+        "w800c_smbcpld",
+        "nh_fpga_psu",
+        "nh_fpga_mux",
+        "nh_fpga_i2c",
+        "nh_fpga_led",
+        "nh_fpga_port_led",
+        "nh_fpga_info",
+        "nh_fpga_asic_temp",
+        "nh_fpga_fan",
+        "nh_xcvr_ctrl"
     ],
-    "sharedKmods": []
+    "sharedKmods": [
+        "nh_irq"
+    ]
 }
