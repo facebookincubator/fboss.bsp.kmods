@@ -58,6 +58,14 @@ install -d %{buildroot}%{util_dir}
 install -t %{buildroot}%{util_dir} kmods/scripts/fbsp-remove.sh
 install -t %{buildroot}%{util_dir} kmods/scripts/kmods.json
 
+# Nexthop helper script, systemd unit and udev rule (kernel-version independent).
+install -d %{buildroot}/usr/libexec/fboss_bsp
+install -d %{buildroot}/usr/lib/systemd/system
+install -d %{buildroot}/usr/lib/udev/rules.d
+install -m 0755 kmods/nexthop/scripts/nh-spd-temp-symlinks.sh %{buildroot}/usr/libexec/fboss_bsp/
+install -m 0644 kmods/nexthop/systemd/fboss-bsp-spd-temp-symlinks.service %{buildroot}/usr/lib/systemd/system/
+install -m 0644 kmods/nexthop/udev/70-fboss-spd-temp.rules %{buildroot}/usr/lib/udev/rules.d/
+
 %clean
 rm -rf %{buildroot}
 
@@ -77,9 +85,27 @@ monitoring sensors, etc).
 %defattr (-, root, root)
 %{kmod_dir}
 %{util_dir}
+/usr/libexec/fboss_bsp/nh-spd-temp-symlinks.sh
+/usr/lib/systemd/system/fboss-bsp-spd-temp-symlinks.service
+/usr/lib/udev/rules.d/70-fboss-spd-temp.rules
 
 %post -n %{name}-%{rpm_kernel_version}
 /sbin/depmod -a %{rpm_kernel_version}
+
+# Pick up the Nexthop unit and udev rule without a reboot.
+if [ -x /usr/bin/systemctl ]; then
+    /usr/bin/systemctl daemon-reload || :
+    /usr/bin/systemctl enable fboss-bsp-spd-temp-symlinks.service || :
+    /usr/bin/systemctl start fboss-bsp-spd-temp-symlinks.service || :
+fi
+if [ -x /usr/bin/udevadm ]; then
+    /usr/bin/udevadm control --reload-rules || :
+fi
+
+%preun -n %{name}-%{rpm_kernel_version}
+if [ $1 -eq 0 ] && [ -x /usr/bin/systemctl ]; then
+    /usr/bin/systemctl disable --now fboss-bsp-spd-temp-symlinks.service || :
+fi
 
 %postun -n %{name}-%{rpm_kernel_version}
 /sbin/depmod -a %{rpm_kernel_version}
