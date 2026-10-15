@@ -21,7 +21,8 @@ nh_platform_objs := nexthop/platform/nh_platform.o \
                     nexthop/platform/m4062nhp_common.o \
                     nexthop/platform/m4062nhp_scm.o \
                     nexthop/platform/m4062nhp_fpga0.o \
-                    nexthop/platform/m4062nhp_fpga1.o
+                    nexthop/platform/m4062nhp_fpga1.o \
+                    nexthop/platform/m4340nhp.o
 
 nh_fpga_i2c-objs := nexthop/nh_fpga_i2c_main.o $(nh_platform_objs)
 
