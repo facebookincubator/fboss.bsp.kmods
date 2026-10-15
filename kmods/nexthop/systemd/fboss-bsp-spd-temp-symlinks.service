@@ -1,0 +1,15 @@
+# Publishes /run/nexthop_bsp/sensors/DIMM[12]_TEMP for platform_manager; the
+# SPD hubs' kernel i2c bus number moves with the CPU I2C controllers the BIOS
+# enables, so the config cannot name it.
+[Unit]
+Description=Publish stable sysfs handles for DDR5 SPD temperature sensors
+After=systemd-udevd.service
+Before=platform_manager.service
+ConditionPathExists=/sys/bus/i2c/drivers/spd5118
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/fboss_bsp/nh-spd-temp-symlinks.sh
+
+[Install]
+WantedBy=multi-user.target

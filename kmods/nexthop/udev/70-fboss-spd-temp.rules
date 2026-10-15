@@ -1,0 +1,4 @@
+# Re-publish the DDR5 SPD temperature sensor handles whenever a hub binds. The
+# work runs in a systemd unit rather than RUN+= so it stays out of udev's
+# SELinux domain.
+ACTION=="bind", SUBSYSTEM=="i2c", DRIVER=="spd5118", TAG+="systemd", ENV{SYSTEMD_WANTS}+="fboss-bsp-spd-temp-symlinks.service"

@@ -55,6 +55,7 @@ include $(M)/leh800b/Makefile
 include $(M)/minipack3n/Makefile
 include $(M)/montblanc/Makefile
 include $(M)/mtia/Makefile
+include $(M)/nexthop/Makefile
 include $(M)/tahansb/Makefile
 include $(M)/wedge800/Makefile
 
