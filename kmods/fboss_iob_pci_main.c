@@ -5,10 +5,9 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 
+#include "fboss-pci-ids.h"
 #include "fboss_iob_pci.h"
 
-#define PCI_VENDOR_ID_META	0x1d9b
-#define PCI_DEVICE_ID_FBIOB	0x0011
 #define FBIOB_BAR_CSR		0
 
 static int fbiob_init_pci(struct fbiob_priv *priv)
@@ -69,7 +68,7 @@ error:
 }
 
 static struct pci_device_id fboss_iob_pci_ids[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_META, PCI_DEVICE_ID_FBIOB) },
+	FBOSS_IOB_PCI_IDS(FBOSS_PCI_ID_ENTRY),
 	{ 0, },
 };
 MODULE_DEVICE_TABLE(pci, fboss_iob_pci_ids);
