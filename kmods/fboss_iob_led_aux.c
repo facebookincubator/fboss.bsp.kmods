@@ -62,14 +62,15 @@ static int brightness_set(struct led_classdev *led_cdev,
 	return 0;
 }
 
-static int port_led_init(struct port_led_dev *ldev,
+static int fbiob_led_init(struct port_led_dev *ldev,
 			 struct port_led_priv *priv,
-			 const char *color)
+			 const char *color,
+			 bool is_elsfp)
 {
 	int ret;
 	u32 val;
 
-	/* initial port led device color */
+	/* initial led device color */
 	if (!strcmp(color, "white"))
 		ldev->led_on_mask = PORT_LED_ON_MASK(WHITE);
 	else if (!strcmp(color, "cyan"))
@@ -92,17 +93,22 @@ static int port_led_init(struct port_led_dev *ldev,
 	ldev->lock = &priv->lock;
 	ldev->mmio_csr = priv->mmio_csr;
 
-	/*
-	 * NOTE: make sure "qsfp_service" config is updated whenever the
-	 * led naming format are changed.
-	 */
-	if (priv->led_idx > 0)
-		snprintf(ldev->name, sizeof(ldev->name), "port%d_led%d:%s:%s",
-			 priv->port_num, priv->led_idx, color,
-			 FBIOB_PORT_LED_FUNC);
-	else
-		snprintf(ldev->name, sizeof(ldev->name), "port%d_led:%s:%s",
-			 priv->port_num, color, FBIOB_PORT_LED_FUNC);
+	if (is_elsfp) {
+		snprintf(ldev->name, sizeof(ldev->name), "elsfp%d_led:%s:%s",
+			 priv->led_idx, color, FBIOB_PORT_LED_FUNC);
+	} else {
+		/*
+		 * NOTE: make sure "qsfp_service" config is updated whenever the
+		 * led naming format are changed.
+		 */
+		if (priv->led_idx > 0)
+			snprintf(ldev->name, sizeof(ldev->name), "port%d_led%d:%s:%s",
+				 priv->port_num, priv->led_idx, color,
+				 FBIOB_PORT_LED_FUNC);
+		else
+			snprintf(ldev->name, sizeof(ldev->name), "port%d_led:%s:%s",
+				 priv->port_num, color, FBIOB_PORT_LED_FUNC);
+	}
 
 	/*
 	 * Set default color to green, no blinking.
@@ -141,6 +147,7 @@ static int port_led_probe(struct auxiliary_device *auxdev,
 			  const struct auxiliary_device_id *id)
 {
 	int i, ret = 0;
+	bool is_elsfp;
 	struct resource *res;
 	struct port_led_priv *priv;
 	struct device *dev = &auxdev->dev;
@@ -149,10 +156,12 @@ static int port_led_probe(struct auxiliary_device *auxdev,
 					struct fbiob_aux_adapter, auxdev);
 	struct fbiob_aux_data *pdata = &aux_adap->data;
 
+	is_elsfp = !strcmp(id->name, FBOSS_IOB_PCI_DRIVER".elsfp_led");
+
 	/*
-	 * Port number (1-based integer) must be supplied.
+	 * Port number (1-based integer) must be supplied for non-ELSFP LEDs.
 	 */
-	if (pdata->led_data.port_num <= 0)
+	if (!is_elsfp && pdata->led_data.port_num <= 0)
 		return -EINVAL;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
@@ -178,13 +187,17 @@ static int port_led_probe(struct auxiliary_device *auxdev,
 	priv->num_leds = ARRAY_SIZE(pled_colors);
 
 	for (i = 0; i < priv->num_leds; i++) {
-		ret = port_led_init(&priv->leds[i], priv, pled_colors[i]);
+		ret = fbiob_led_init(&priv->leds[i], priv, pled_colors[i], is_elsfp);
 		if (ret < 0)
 			goto error;
 	}
 
-	dev_info(dev, "port%d_led_%d (csr_addr=0x%x) registered",
-		 priv->port_num, priv->led_idx, priv->csr_bus_addr);
+	if (is_elsfp)
+		dev_info(dev, "elsfp%d_led (csr_addr=0x%x) registered",
+			 priv->led_idx, priv->csr_bus_addr);
+	else
+		dev_info(dev, "port%d_led_%d (csr_addr=0x%x) registered",
+			 priv->port_num, priv->led_idx, priv->csr_bus_addr);
 	return 0;
 
 error:
@@ -194,6 +207,7 @@ error:
 
 static const struct auxiliary_device_id fboss_iob_led_ids[] = {
 	{ .name = FBOSS_IOB_PCI_DRIVER".port_led" },
+	{ .name = FBOSS_IOB_PCI_DRIVER".elsfp_led" },
 	{},
 };
 MODULE_DEVICE_TABLE(auxiliary, fboss_iob_led_ids);
