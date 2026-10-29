@@ -22,7 +22,7 @@
 
 Name: fboss_bsp_kmods
 Summary: FBOSS BSP (Board Support Package) Kernel Modules
-Version: 2026.10.1
+Version: 2026.10.2
 Release: 1
 Vendor: Meta
 License: GPLv2
