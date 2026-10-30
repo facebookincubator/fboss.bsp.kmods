@@ -791,6 +791,8 @@ static struct pmbus_driver_info max34440_info[] = {
 	},
 };
 
+static const struct i2c_device_id max34440_id[];
+
 static int max34440_probe(struct i2c_client *client)
 {
 	struct max34440_data *data;
@@ -800,7 +802,11 @@ static int max34440_probe(struct i2c_client *client)
 			    GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+#if KERNEL_VERSION(6, 5, 0) > LINUX_VERSION_CODE
+	data->id = i2c_match_id(max34440_id, client)->driver_data;
+#else
 	data->id = (uintptr_t)i2c_get_match_data(client);
+#endif
 	data->info = max34440_info[data->id];
 	data->iout_oc_fault_limit = MAX34440_IOUT_OC_FAULT_LIMIT;
 	data->iout_oc_warn_limit = MAX34440_IOUT_OC_WARN_LIMIT;
