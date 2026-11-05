@@ -55,7 +55,28 @@ static int brightness_set(struct led_classdev *led_cdev,
 
 	data = readl(ldev->mmio_csr);
 	if (value == 0) {
-		data &= ~(ldev->led_on_mask);
+        /*
+        * Turn off the LED of this specific color.
+        *
+        * All color classdevs of one port LED share a single CSR: a
+        * 3-bit color-profile field plus a common PORT_LED_ON_OFF_CTRL
+        * (bit0) enable, so only one color is displayed at a time.
+        * Clearing led_on_mask would also clear the shared enable bit,
+        * so an off for a color that is NOT currently shown would blank
+        * whatever other color is on.
+        *
+        * Guard the off: only blank the register when THIS color is the
+        * one currently displayed (data == led_on_mask, the same check
+        * brightness_get uses). Otherwise leave the register untouched.
+        *
+        * Note: this driver never sets PORT_LED_FLASH_CTRL (bit1);
+        * blinking is done in software by the LED timer trigger toggling
+        * brightness. So bit1 is always 0 and the strict equality above
+        * is sufficient to identify the currently displayed color.
+        */
+        if (data == ldev->led_on_mask)
+            data &= ~(ldev->led_on_mask);
+        /* else: not the displayed color, leave the CSR untouched */
 	} else {
 		// turn off control bits before turning specific color on
 		data &= ~PORT_LED_MASK_ALL;
@@ -116,7 +137,7 @@ static int fbiob_led_init(struct port_led_dev *ldev,
 	}
 
 	/*
-	 * Set default color to green, no blinking.
+	 * Set default color to blue, no blinking.
 	 */
 	val = readl(ldev->mmio_csr);
 	val &= ~PORT_LED_MASK_ALL;

@@ -9,9 +9,9 @@
 
 /*
  * Only 3 colors are exported to user space for qsfp_service.
- * Set the last element to 'green' for setting default color to green.
+ * Set the last element to 'blue' for setting default color to blue.
  */
-static const char *const pled_colors[] = {"amber", "blue", "green"};
+static const char *const pled_colors[] = {"amber", "green", "blue"};
 
 /*
  * Structure for each LED color
